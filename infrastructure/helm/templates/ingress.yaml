@@ -8,7 +8,7 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: "alb"
     alb.ingress.kubernetes.io/scheme: "internet-facing"
-    alb.ingress.kubernetes.io/healthcheck-path: "/actuator/health/liveness"
+    alb.ingress.kubernetes.io/healthcheck-path: "/"
     alb.ingress.kubernetes.io/success-codes: "200,201,301,302"
     alb.ingress.kubernetes.io/target-type: "ip"
     {{- if .Values.ingress.certificateARN }}
