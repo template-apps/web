@@ -1,0 +1,31 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "service.name" . }}
+  labels:
+    app: {{ include "service.name" . }}
+  annotations:
+    kubernetes.io/ingress.class: "alb"
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/healthcheck-path: "/actuator/health/liveness"
+    alb.ingress.kubernetes.io/success-codes: "200,201,301,302"
+    alb.ingress.kubernetes.io/target-type: "ip"
+    {{- if .Values.ingress.certificateARN }}
+    alb.ingress.kubernetes.io/certificate-arn: "{{ .Values.ingress.certificateARN }}"
+    alb.ingress.kubernetes.io/listen-ports: "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    {{- end }}
+spec:
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "service.name" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

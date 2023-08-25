@@ -1,0 +1,102 @@
+name: Continuous Deployment
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build, Test, Tag and Push Docker Image to Registry
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    outputs:
+      new_tag: ${{ steps.tagger.outputs.new_tag }}
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: '0'
+
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Build Next App
+        run: |
+          npm ci
+          npm run build
+
+      - name: Bump version and push GitHub tag (Release version)
+        id: tagger
+        uses: anothrNick/github-tag-action@1.64.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{vars.REGION}}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-password: 'true'
+
+      - name: Build Image and Push to ECR
+        run: |
+          ./rebuildAndPush.sh -r ${{ steps.login-ecr.outputs.registry }} \
+            -n ${{vars.NAMESPACE}} -v "${{ steps.tagger.outputs.new_tag }}"
+
+  deploy:
+    name: Deploy image to EKS
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: '0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{vars.REGION}}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-password: 'true'
+
+      - name: helm deploy
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.4
+        with:
+          aws-region: ${{vars.REGION}}
+          cluster-name: ${{vars.CLUSTER}}
+          config-files: infrastructure/helm/values.yaml
+          chart-path: infrastructure/helm
+          namespace: ${{vars.NAMESPACE}}
+          values: image.repository=${{ steps.login-ecr.outputs.registry }}/${{vars.NAMESPACE}}-web,image.tag=${{ needs.build.outputs.new_tag }},imagePullSecrets=,autoscaling.enabled=true,ingress.enabled=true,ingress.certificateARN=${{ secrets.CERTIFICATE_ARN }},ingress.host=${{ format('{0}.{1}', 'app', vars.DOMAIN) }}
+          name: web

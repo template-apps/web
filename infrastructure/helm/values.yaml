@@ -1,0 +1,50 @@
+replicaCount: 1
+
+image:
+  repository: 'to be overridden'
+  tag: 'to be overridden'
+  pullPolicy: Always
+
+imagePullSecrets: 'to be overridden'
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 3000
+
+serviceAccount:
+  annotations: {}
+
+ingress:
+  enabled: 'to be overridden'
+  certificateARN: 'to be overridden'
+  host: 'to be overridden'
+
+resources:
+  {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+#   memory: 128Mi
+
+autoscaling:
+  enabled: 'to be overridden'
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+app:
+  server:
+    port: '3000'
